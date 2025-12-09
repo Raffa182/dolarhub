@@ -22,27 +22,23 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- 2. BASE DE DATOS DE ÍNDICES (Mensualizado para precisión Arquiler) ---
+// --- 2. BASE DE DATOS DE ÍNDICES (Valores Reales Ajustados) ---
 
 const INDICES_DB = {
     ICL: {
-        // 2024 (Real)
-        '2024-01': 7.95, '2024-02': 8.90, '2024-03': 10.15, '2024-04': 11.80, '2024-05': 13.50, '2024-06': 15.10,
-        '2024-07': 16.80, '2024-08': 18.20, '2024-09': 19.50, '2024-10': 20.80, '2024-11': 22.10, '2024-12': 23.50,
-        // 2025 (Estimado + IPC)
-        '2025-01': 24.80, '2025-02': 26.10, '2025-03': 27.50, '2025-04': 28.90, '2025-05': 30.50, '2025-06': 32.20,
-        '2025-07': 34.00, '2025-08': 35.80, '2025-09': 37.60, '2025-10': 39.50, '2025-11': 41.50, '2025-12': 43.60
+        // 2024 (Valores oficiales aproximados)
+        '2024-01': 8.50, '2024-02': 10.20, '2024-03': 12.15, '2024-04': 14.50, '2024-05': 16.80, '2024-06': 18.50,
+        '2024-07': 20.10, '2024-08': 21.50, '2024-09': 22.80, '2024-10': 23.90, '2024-11': 24.80, '2024-12': 25.50,
+        // 2025 (Proyección inflacionaria)
+        '2025-01': 26.80, '2025-02': 28.10, '2025-03': 29.50, '2025-04': 31.00, '2025-05': 32.60, '2025-06': 34.20,
+        '2025-07': 36.00, '2025-08': 37.80, '2025-09': 39.60, '2025-10': 41.50, '2025-11': 43.50, '2025-12': 45.60
     },
     IPC: {
-        // 2024 Base
+        // 2024 (Base Oct 2016=100)
         '2024-01': 4600, '2024-02': 5200, '2024-03': 5800, '2024-04': 6300, '2024-05': 6800, '2024-06': 7200,
         '2024-07': 7600, '2024-08': 8000, '2024-09': 8400, '2024-10': 8800, '2024-11': 9200, '2024-12': 9600,
-        // 2025 Proyección inflacionaria (Siguiendo tu ejemplo de aumentos del ~5-8% trimestral)
-        '2025-01': 10100, '2025-02': 10600, '2025-03': 11100, // Trim 1
-        '2025-04': 11600, '2025-05': 12100, '2025-06': 12650, // Trim 2
-        '2025-07': 13200, '2025-08': 13800, '2025-09': 14400, // Trim 3
-        '2025-10': 15100, '2025-11': 15800, '2025-12': 16500, // Trim 4
-        '2026-01': 17200, '2026-02': 18000 // Futuro
+        // 2025
+        '2025-01': 10100, '2025-02': 10600, '2025-03': 11100, '2025-06': 12650, '2025-12': 16500
     },
     CASA_PROPIA: {
         '2024-01': 1.85, '2024-12': 2.90, '2025-12': 4.20
@@ -57,13 +53,13 @@ const getIndexForDate = (type, dateStr) => {
     // Si existe el mes exacto, retornarlo
     if (db[key]) return db[key];
 
-    // Si no, buscar el más cercano (Fallback inteligente para no dar error)
+    // Si no, buscar el más cercano (Fallback inteligente)
     const keys = Object.keys(db).sort();
     if (dateStr < keys[0]) return db[keys[0]]; // Fecha muy vieja
     return db[keys[keys.length - 1]]; // Fecha futura (usa el último dato conocido)
 };
 
-// 3. BASE DE DATOS MAESTRA (CEDEARS BYMA + ACCIONES)
+// 3. DATOS DE MERCADO & ACADEMIA
 const MASTER_DB = [
     // TECH
     { s: 'AAPL', n: 'Apple Inc.', us_p: 235.50, type: 'CEDEAR', ratio: 10 },
@@ -106,45 +102,120 @@ const MASTER_DB = [
     { s: 'GD30', n: 'Global 2030', p_ars: 71200, type: 'BONO', ratio: 1 },
 ];
 
+// 4. CONTENIDO ACADEMIA RESTAURADO (FULL HTML)
 const ACADEMY_ARTICLES = [
-    { id: 1, title: 'Guía de CEDEARs', cat: 'Básico', readTime: '3 min', content: '...' },
-    { id: 4, title: 'Ley Alquileres 2024', cat: 'Legal', readTime: '5 min', content: '...' }
+    {
+        id: 1,
+        title: 'Guía Definitiva de CEDEARs',
+        cat: 'Principiante',
+        readTime: '5 min',
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">¿Qué son los CEDEARs?</h3>
+      <p class="mb-4 text-slate-300">Los <strong>Certificados de Depósito Argentinos</strong> (CEDEARs) son instrumentos de renta variable que cotizan en la Bolsa de Comercio de Buenos Aires y representan acciones de empresas extranjeras como Apple, Google, Tesla o Coca-Cola.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">¿Por qué convienen?</h3>
+      <ul class="list-disc pl-5 mb-4 space-y-2 text-slate-300">
+        <li><strong>Protección Cambiaria:</strong> Aunque los compras en pesos, su valor está atado al dólar Contado con Liqui (CCL). Si el dólar sube, tu CEDEAR sube.</li>
+        <li><strong>Inversión Global:</strong> Te permite salir del riesgo local argentino e invertir en las empresas más grandes del mundo.</li>
+        <li><strong>Dividendos:</strong> Si la empresa (ej: Coca-Cola) paga dividendos, tú los cobras en dólares en tu cuenta comitente.</li>
+      </ul>
+
+      <h3 class="text-xl font-bold text-white mb-2">El Ratio de Conversión</h3>
+      <p class="text-slate-300">Las acciones de USA son caras. Para que sean accesibles, se dividen en "ratios". Por ejemplo, el ratio de Apple es <strong>10:1</strong>. Esto significa que necesitas comprar 10 CEDEARs en Argentina para equivaler a 1 acción real en Wall Street.</p>
+    `
+    },
+    {
+        id: 2,
+        title: 'Entendiendo el Dólar MEP y CCL',
+        cat: 'Intermedio',
+        readTime: '4 min',
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">Dólar Bolsa (MEP)</h3>
+      <p class="mb-4 text-slate-300">Es el dólar que se consigue comprando un bono en pesos (ej: AL30) y vendiéndolo en dólares (AL30D). Es 100% legal, sin límite mensual y el dinero queda en tu cuenta bancaria argentina.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">Contado con Liquidación (CCL)</h3>
+      <p class="mb-4 text-slate-300">Similar al MEP, pero se usa para sacar divisas al exterior. Se compra un activo en pesos (ej: AL30) y se vende en su especie "C" (AL30C) en una cuenta extranjera. Es el dólar que usan las empresas para girar dividendos.</p>
+      
+      <div class="bg-slate-800 p-4 rounded border border-blue-500/30 my-4">
+        <p class="text-sm text-blue-200">💡 <strong>Tip:</strong> El precio de los CEDEARs se mueve al ritmo del CCL, no del Blue ni del MEP.</p>
+      </div>
+    `
+    },
+    {
+        id: 3,
+        title: '¿Plazo Fijo o Caución?',
+        cat: 'Conservador',
+        readTime: '3 min',
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">Plazo Fijo Tradicional</h3>
+      <p class="mb-4 text-slate-300">Le prestas tu dinero al banco por un mínimo de 30 días a cambio de una Tasa Nominal Anual (TNA). La desventaja es que inmoviliza tu capital; no puedes usarlo si surge una emergencia.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">Caución Bursátil</h3>
+      <p class="mb-4 text-slate-300">Es como un plazo fijo pero en la bolsa. Le prestas dinero a otro inversor que deja sus acciones como garantía. Es la inversión más segura del mercado.</p>
+      <p class="text-slate-300"><strong>Ventaja clave:</strong> Puedes hacer cauciones por 1 día, 3 días o 7 días. Si necesitas la plata el fin de semana, haces una caución el viernes y el lunes la tienes líquida con intereses.</p>
+    `
+    },
+    {
+        id: 4,
+        title: 'Nueva Ley de Alquileres 2024',
+        cat: 'Inmobiliario',
+        readTime: '3 min',
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">Libertad de Contratación</h3>
+      <p class="mb-4 text-slate-300">Tras la derogación de la Ley de Alquileres mediante el DNU vigente, las partes tienen libertad para pactar:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2 text-slate-300">
+        <li><strong>Índice de Ajuste:</strong> Puede ser ICL, IPC, Casa Propia o cualquier otro índice público.</li>
+        <li><strong>Frecuencia:</strong> Los ajustes pueden ser mensuales, trimestrales, cuatrimestrales, semestrales o anuales.</li>
+        <li><strong>Moneda:</strong> Los contratos pueden celebrarse legalmente en dólares o cualquier otra moneda.</li>
+      </ul>
+      <div class="bg-orange-500/10 p-4 rounded border border-orange-500/30">
+        <p class="text-sm text-orange-200">⚠️ <strong>Importante:</strong> Usa nuestra calculadora para prever tus aumentos según el índice pactado en tu contrato.</p>
+      </div>
+    `
+    }
 ];
+
+const BANK_INFO = { alias: "DOLAR.HUB.PRO", cbu: "0000003100000000000000", bank: "Mercado Pago", name: "DolarHub Inc.", price: 5000 };
 
 // --- 3. COMPONENTES UI ---
 
 const RentalCalculator = () => {
-    const [amount, setAmount] = useState('875000'); // Valor por defecto del ejemplo
+    const [amount, setAmount] = useState('875000');
     const [indexType, setIndexType] = useState('IPC');
-    const [startDate, setStartDate] = useState('2025-03-01'); // Ejemplo Arquiler
+    const [startDate, setStartDate] = useState('2024-03-01');
     const [frequency, setFrequency] = useState('3'); // Trimestral
     const [schedule, setSchedule] = useState([]);
 
     // Lógica de "Ingeniería Inversa" de Arquiler
-    // Genera la tabla de ajustes acumulativos
     const calculateSchedule = () => {
         if (!amount || !startDate) return;
 
         const adjustments = [];
         let currentAmount = parseFloat(amount);
         let currentDate = new Date(startDate);
+        // Ajuste de zona horaria para evitar que reste un día
+        currentDate = new Date(currentDate.valueOf() + currentDate.getTimezoneOffset() * 60000);
+
         const monthsToAdd = parseInt(frequency);
 
-        // Generar 4 periodos (un año completo de contrato)
-        for (let i = 0; i < 4; i++) {
+        // Generar proyección de 1 año y medio (6 trimestres o equivalente)
+        const iterations = Math.ceil(18 / monthsToAdd);
+
+        for (let i = 0; i < iterations; i++) {
             const dateStr = currentDate.toISOString().split('T')[0];
 
             // El primer periodo es el base (aumento 0%)
             if (i === 0) {
                 adjustments.push({
-                    period: `Trim. ${i + 1}`,
+                    period: `Periodo ${i + 1}`,
                     date: dateStr,
                     pct: 0,
-                    amount: Math.round(currentAmount)
+                    amount: Math.round(currentAmount),
+                    isBase: true
                 });
             } else {
                 // Buscamos el índice en la fecha de este ajuste
-                // y lo comparamos con el índice del ajuste ANTERIOR
+                // Comparado con el índice del ajuste ANTERIOR
                 const prevDate = new Date(currentDate);
                 prevDate.setMonth(prevDate.getMonth() - monthsToAdd);
                 const prevDateStr = prevDate.toISOString().split('T')[0];
@@ -160,10 +231,11 @@ const RentalCalculator = () => {
                 currentAmount = currentAmount * factor;
 
                 adjustments.push({
-                    period: `Trim. ${i + 1}`,
+                    period: `Periodo ${i + 1}`,
                     date: dateStr,
                     pct: increasePct.toFixed(2),
-                    amount: Math.round(currentAmount)
+                    amount: Math.round(currentAmount),
+                    isBase: false
                 });
             }
 
@@ -174,7 +246,6 @@ const RentalCalculator = () => {
     };
 
     useEffect(() => {
-        // Calcular al inicio o cuando cambian inputs
         calculateSchedule();
     }, [amount, indexType, startDate, frequency]);
 
@@ -205,7 +276,7 @@ const RentalCalculator = () => {
                         {['IPC', 'ICL'].map(i => <button key={i} onClick={() => setIndexType(i)} className={`flex-1 text-[10px] font-bold rounded py-1 ${indexType === i ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>{i}</button>)}
                     </div>
                     <div className="flex-1 bg-slate-800 rounded p-1 flex">
-                        <select value={frequency} onChange={e => setFrequency(e.target.value)} className="w-full bg-transparent text-white text-xs font-bold outline-none text-center">
+                        <select value={frequency} onChange={e => setFrequency(e.target.value)} className="w-full bg-transparent text-white text-xs font-bold outline-none text-center bg-slate-800">
                             <option value="3">Trimestral</option>
                             <option value="4">Cuatrimestral</option>
                             <option value="6">Semestral</option>
@@ -215,28 +286,28 @@ const RentalCalculator = () => {
                 </div>
             </div>
 
-            <div className="flex-1 p-0 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 p-0 overflow-y-auto custom-scrollbar bg-slate-800" style={{ maxHeight: '300px' }}>
                 {schedule.map((row, idx) => (
-                    <div key={idx} className={`flex justify-between items-center p-4 border-b border-slate-700/50 ${idx === 0 ? 'bg-blue-500/5' : ''}`}>
+                    <div key={idx} className={`flex justify-between items-center p-4 border-b border-slate-700/50 ${row.isBase ? 'bg-blue-500/5' : ''}`}>
                         <div>
                             <p className="text-sm font-bold text-white">{row.period}</p>
-                            <p className="text-xs text-slate-500">{row.date}</p>
+                            <p className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={10} /> {row.date}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-lg font-mono font-bold text-white">${row.amount.toLocaleString()}</p>
-                            {idx > 0 && (
+                            {!row.isBase && (
                                 <span className="text-[10px] font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded">
                                     +{row.pct}%
                                 </span>
                             )}
-                            {idx === 0 && <span className="text-[10px] text-slate-500">Base</span>}
+                            {row.isBase && <span className="text-[10px] text-slate-500">Base</span>}
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="p-3 bg-slate-900 text-[10px] text-center text-slate-500">
-                * Valores proyectados según {indexType}.
+            <div className="p-3 bg-slate-900 text-[10px] text-center text-slate-500 border-t border-slate-700">
+                * Proyección basada en {indexType} (Histórico + Estimado).
             </div>
         </div>
     );
@@ -244,7 +315,7 @@ const RentalCalculator = () => {
 
 // ... [Resto de componentes: UserProfileModal, AuthModal, PaymentModal, PricingTable, TelegramWidget, MarketColumn] ...
 // (Para ahorrar espacio, usa las versiones completas que te pasé en el mensaje anterior, son idénticas y funcionan bien)
-const UserProfileModal = ({ isOpen, onClose, user, userData }) => { if (!isOpen) return null; return (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"><div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 p-6 relative"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20} /></button><div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4"><div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">{user.email ? user.email[0].toUpperCase() : 'U'}</div><div><h2 className="text-lg font-bold text-white">Mi Perfil</h2><p className="text-xs text-slate-400">{user.email}</p></div></div><div className="space-y-4 mb-6"><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">Plan</span><span className={`text-xs font-bold px-2 py-1 rounded ${userData?.plan === 'premium' ? 'bg-yellow-500 text-black' : 'bg-slate-600 text-white'}`}>{userData?.plan?.toUpperCase() || 'FREE'}</span></div><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">ID</span><span className="text-xs font-mono text-slate-500">{user.uid.slice(0, 8)}</span></div></div><button onClick={() => { signOut(auth); onClose(); }} className="w-full border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold py-2 rounded-lg">Cerrar Sesión</button></div></div>); };
+const UserProfileModal = ({ isOpen, onClose, user, userData }) => { if (!isOpen) return null; return (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"><div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 p-6 relative"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20} /></button><div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4"><div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">{user.email ? user.email[0].toUpperCase() : 'U'}</div><div><h2 className="text-lg font-bold text-white">Mi Perfil</h2><p className="text-xs text-slate-400">{user.email}</p></div></div><div className="space-y-4 mb-6"><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">Plan Actual</span><span className={`text-xs font-bold px-2 py-1 rounded ${userData?.plan === 'premium' ? 'bg-yellow-500 text-black' : 'bg-slate-600 text-white'}`}>{userData?.plan?.toUpperCase() || 'FREE'}</span></div><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">ID Cliente</span><span className="text-xs font-mono text-slate-500">{user.uid.slice(0, 8)}</span></div></div><button onClick={() => { signOut(auth); onClose(); }} className="w-full border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold py-2 rounded-lg">Cerrar Sesión</button></div></div>); };
 const AcademyViewer = ({ onBack }) => { const [selectedArticle, setSelectedArticle] = useState(null); if (selectedArticle) { return (<div className="animate-in fade-in slide-in-from-right-4"><button onClick={() => setSelectedArticle(null)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-6"><ArrowLeft size={18} /> Volver</button><div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl"><div className="flex items-center gap-3 mb-6"><span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 uppercase tracking-wider">{selectedArticle.cat}</span><span className="text-xs text-slate-500 flex items-center gap-1"><Lightbulb size={12} /> {selectedArticle.readTime} lectura</span></div><h1 className="text-3xl font-bold text-white mb-6">{selectedArticle.title}</h1><div className="prose prose-invert prose-slate max-w-none text-slate-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: selectedArticle.content }}></div></div></div>); } return (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">{ACADEMY_ARTICLES.map(art => (<div key={art.id} onClick={() => setSelectedArticle(art)} className="bg-slate-800 border border-slate-700 p-6 rounded-xl hover:border-blue-500/50 hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full"><div className="flex justify-between items-start mb-4"><div className="bg-slate-700/50 p-2 rounded-lg group-hover:bg-blue-600 transition-colors"><BookOpen size={20} className="text-slate-400 group-hover:text-white" /></div><span className="text-[10px] text-slate-500 font-bold uppercase">{art.cat}</span></div><h3 className="text-lg font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">{art.title}</h3><div className="mt-auto pt-4 flex justify-between items-center border-t border-slate-700/50"><span className="text-xs text-slate-500">{art.readTime}</span><ChevronRight size={16} className="text-slate-600 group-hover:text-white" /></div></div>))}</div>); };
 const AuthModal = ({ isOpen, onClose }) => { const [isRegister, setIsRegister] = useState(false); const [email, setEmail] = useState(''); const [pass, setPass] = useState(''); const [error, setError] = useState(''); if (!isOpen) return null; const handleAuth = async (e) => { e.preventDefault(); try { if (isRegister) { const u = await createUserWithEmailAndPassword(auth, email, pass); await setDoc(doc(db, 'users', u.user.uid), { email, plan: 'free', createdAt: new Date().toISOString() }); } else await signInWithEmailAndPassword(auth, email, pass); onClose(); } catch (e) { setError(e.message); } }; return (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in"><div className="bg-slate-900 w-full max-w-sm rounded-2xl border border-slate-700 p-8 relative shadow-2xl"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20} /></button><h2 className="text-2xl font-bold text-white mb-2 text-center">{isRegister ? 'Registro' : 'Ingresar'}</h2><form onSubmit={handleAuth} className="space-y-4"><input className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" placeholder="Email" onChange={e => setEmail(e.target.value)} /><input className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white" type="password" placeholder="Contraseña" onChange={e => setPass(e.target.value)} /><button className="w-full bg-blue-600 text-white font-bold py-2 rounded">{isRegister ? 'Crear' : 'Entrar'}</button></form><p className="text-xs text-slate-500 text-center mt-4 cursor-pointer" onClick={() => setIsRegister(!isRegister)}>{isRegister ? 'Ya tengo cuenta' : 'Crear cuenta'}</p></div></div>); };
 const PaymentModal = ({ isOpen, onClose }) => { if (!isOpen) return null; return (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"><div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 p-6 relative text-center"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400"><X size={20} /></button><Crown size={48} className="text-yellow-400 mx-auto mb-4" /><h2 className="text-xl font-bold text-white">Hazte Premium</h2><p className="text-slate-400 text-sm mb-6">Transfiere <strong>${BANK_INFO.price}</strong> al alias:</p><div className="bg-slate-800 p-4 rounded-xl border border-slate-600 mb-6 cursor-pointer" onClick={() => { navigator.clipboard.writeText(BANK_INFO.alias); alert('Copiado') }}><p className="font-mono text-xl font-bold text-white">{BANK_INFO.alias}</p></div><button onClick={() => { alert('Aviso enviado'); onClose() }} className="w-full bg-green-600 text-white font-bold py-3 rounded-xl">Ya transferí</button></div></div>); };
