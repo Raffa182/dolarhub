@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, doc, setDoc, onSnapshot, query, where, deleteDoc } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { TrendingUp, Calculator, Search, Send, Lock, Shield, CheckCircle, AlertTriangle, Plus, X, CreditCard, Copy, LogOut, FileText, Mail, Key, UserCircle, Crown, BookOpen, Home, Percent, HelpCircle, BarChart3, ChevronRight, Calendar, User, Trash2, ArrowLeft, Lightbulb, Clock } from 'lucide-react';
+import { TrendingUp, Calculator, Search, Send, Lock, Shield, CheckCircle, AlertTriangle, Plus, X, CreditCard, Copy, LogOut, FileText, Mail, Key, UserCircle, Crown, BookOpen, Home, Percent, HelpCircle, BarChart3, ChevronRight, Calendar, User, Trash2, ArrowLeft, Lightbulb, Clock, RefreshCw } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 import ReactGA from "react-ga4";
 
@@ -24,6 +24,7 @@ const db = getFirestore(app);
 
 // --- 2. DATOS ESTÁTICOS ---
 
+// Indices simulados con precisión mensual para interpolación
 const INDICES_DB = {
     ICL: {
         '2023-01': 3.15, '2023-02': 3.29, '2023-03': 3.45, '2023-04': 3.65, '2023-05': 3.89, '2023-06': 4.15,
@@ -31,13 +32,12 @@ const INDICES_DB = {
         '2024-01': 8.50, '2024-02': 10.20, '2024-03': 12.15, '2024-04': 14.50, '2024-05': 16.80, '2024-06': 18.50,
         '2024-07': 20.10, '2024-08': 21.50, '2024-09': 22.80, '2024-10': 23.90, '2024-11': 24.80, '2024-12': 25.50,
         '2025-01': 26.20, '2025-02': 27.50, '2025-03': 28.90, '2025-04': 30.50, '2025-05': 32.20, '2025-06': 34.00,
-        '2025-07': 36.10, '2025-08': 38.20, '2025-09': 40.50, '2025-10': 42.80, '2025-11': 45.10, '2025-12': 47.50,
-        '2026-01': 50.00 // Proyección mínima para evitar crash en primeros días 2026
+        '2025-12': 47.50, '2026-01': 50.00
     },
     IPC: {
         '2023-01': 1205, '2023-12': 3500,
         '2024-01': 4221, '2024-06': 6500, '2024-12': 9800,
-        '2025-01': 10500, '2025-06': 14000, '2025-12': 18000
+        '2025-01': 10500, '2025-12': 18000
     },
     CASA_PROPIA: {
         '2023-01': 1.05, '2023-12': 1.70,
@@ -46,6 +46,7 @@ const INDICES_DB = {
     }
 };
 
+// Interpolación para obtener valor diario aproximado
 const getDailyIndex = (type, dateStr) => {
     const [year, month, day] = dateStr.split('-').map(Number);
     const keyCurrent = `${year}-${String(month).padStart(2, '0')}`;
@@ -60,152 +61,67 @@ const getDailyIndex = (type, dateStr) => {
 
     if (!valCurrent) {
         const keys = Object.keys(INDICES_DB[type]).sort();
-        if (dateStr < keys[0]) return INDICES_DB[type][keys[0]];
-        return INDICES_DB[type][keys[keys.length - 1]];
+        if (dateStr < keys[0]) return INDICES_DB[type][keys[0]]; // Fecha muy vieja -> Valor más viejo
+        return INDICES_DB[type][keys[keys.length - 1]]; // Fecha futura -> Último valor conocido
     }
 
-    // Interpolación simple si no es ICL o si falta el siguiente mes
-    if (!valNext) return valCurrent;
+    if (!valNext || type !== 'ICL') return valCurrent;
 
-    const daysInMonth = new Date(year, month, 0).getDate();
+    const daysInMonth = 30; // Simplificación estándar
     const dailyStep = (valNext - valCurrent) / daysInMonth;
-    // Interpolamos al día exacto
     return valCurrent + (dailyStep * (day - 1));
 };
 
 const MASTER_DB = [
-    // TECH
     { s: 'AAPL', n: 'Apple Inc.', us_p: 235.50, type: 'CEDEAR', ratio: 10 },
-    { s: 'MSFT', n: 'Microsoft Corp', us_p: 420.00, type: 'CEDEAR', ratio: 30 },
-    { s: 'GOOGL', n: 'Alphabet Inc.', us_p: 175.20, type: 'CEDEAR', ratio: 58 },
-    { s: 'AMZN', n: 'Amazon.com', us_p: 185.00, type: 'CEDEAR', ratio: 144 },
-    { s: 'NVDA', n: 'NVIDIA Corp', us_p: 135.50, type: 'CEDEAR', ratio: 24 },
-    { s: 'TSLA', n: 'Tesla Inc.', us_p: 350.00, type: 'CEDEAR', ratio: 15 },
-    { s: 'META', n: 'Meta Platforms', us_p: 580.00, type: 'CEDEAR', ratio: 24 },
-    { s: 'AMD', n: 'Adv. Micro Devices', us_p: 160.00, type: 'CEDEAR', ratio: 10 },
-    { s: 'NFLX', n: 'Netflix Inc.', us_p: 650.00, type: 'CEDEAR', ratio: 16 },
-    { s: 'INTC', n: 'Intel Corp', us_p: 24.50, type: 'CEDEAR', ratio: 5 },
-    // REGIONAL
     { s: 'MELI', n: 'MercadoLibre', us_p: 2100.00, type: 'CEDEAR', ratio: 120 },
-    { s: 'BABA', n: 'Alibaba Group', us_p: 85.00, type: 'CEDEAR', ratio: 9 },
-    { s: 'PBR', n: 'Petrobras', us_p: 14.50, type: 'CEDEAR', ratio: 1 },
-    { s: 'VALE', n: 'Vale S.A.', us_p: 11.20, type: 'CEDEAR', ratio: 2 },
-    { s: 'GLOB', n: 'Globant', us_p: 180.00, type: 'CEDEAR', ratio: 18 },
-    // ETFs
     { s: 'SPY', n: 'SPDR S&P 500', us_p: 580.00, type: 'CEDEAR', ratio: 20 },
-    { s: 'QQQ', n: 'Invesco NASDAQ', us_p: 490.00, type: 'CEDEAR', ratio: 20 },
-    { s: 'DIA', n: 'Dow Jones', us_p: 420.00, type: 'CEDEAR', ratio: 20 },
-    { s: 'EEM', n: 'MSCI Emerging', us_p: 42.50, type: 'CEDEAR', ratio: 5 },
-    { s: 'XLE', n: 'Energy Select', us_p: 92.00, type: 'CEDEAR', ratio: 2 },
-    { s: 'XLF', n: 'Financial Select', us_p: 42.00, type: 'CEDEAR', ratio: 2 },
-    // CONSUMO
     { s: 'KO', n: 'Coca-Cola', us_p: 68.00, type: 'CEDEAR', ratio: 5 },
-    { s: 'PEP', n: 'PepsiCo Inc.', us_p: 172.00, type: 'CEDEAR', ratio: 6 },
-    { s: 'MCD', n: 'McDonalds', us_p: 300.00, type: 'CEDEAR', ratio: 8 },
-    { s: 'WMT', n: 'Walmart', us_p: 82.00, type: 'CEDEAR', ratio: 6 },
-    { s: 'DIS', n: 'Walt Disney', us_p: 95.00, type: 'CEDEAR', ratio: 4 },
-    // FINANCIERO
-    { s: 'JPM', n: 'JPMorgan Chase', us_p: 195.00, type: 'CEDEAR', ratio: 5 },
-    { s: 'V', n: 'Visa Inc.', us_p: 275.00, type: 'CEDEAR', ratio: 18 },
-    { s: 'MA', n: 'Mastercard', us_p: 450.00, type: 'CEDEAR', ratio: 33 },
-    // LOCALES & BONOS
-    { s: 'GGAL', n: 'Grupo Galicia', p_ars: 5600, type: 'ACCION', ratio: 1 },
+    { s: 'MSFT', n: 'Microsoft', us_p: 420.00, type: 'CEDEAR', ratio: 30 },
+    { s: 'GOOGL', n: 'Google', us_p: 175.00, type: 'CEDEAR', ratio: 58 },
+    { s: 'AMZN', n: 'Amazon', us_p: 185.00, type: 'CEDEAR', ratio: 144 },
+    { s: 'TSLA', n: 'Tesla', us_p: 350.00, type: 'CEDEAR', ratio: 15 },
+    { s: 'NVDA', n: 'NVIDIA', us_p: 135.00, type: 'CEDEAR', ratio: 24 },
+    { s: 'GGAL', n: 'Galicia', p_ars: 5600, type: 'ACCION', ratio: 1 },
     { s: 'YPFD', n: 'YPF S.A.', p_ars: 24500, type: 'ACCION', ratio: 1 },
     { s: 'AL30', n: 'Bono 2030', p_ars: 68500, type: 'BONO', ratio: 1 },
-    { s: 'GD30', n: 'Global 2030', p_ars: 71200, type: 'BONO', ratio: 1 },
 ];
 
 const ACADEMY_ARTICLES = [
-    {
-        id: 1,
-        title: 'Guía Definitiva de CEDEARs',
-        cat: 'Principiante',
-        readTime: '5 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">¿Qué son los CEDEARs?</h3><p class="mb-4 text-slate-300">Los <strong>Certificados de Depósito Argentinos</strong> (CEDEARs) son instrumentos de renta variable que cotizan en la Bolsa de Comercio de Buenos Aires y representan acciones de empresas extranjeras como Apple, Google, Tesla o Coca-Cola.</p><h3 class="text-xl font-bold text-white mb-2">¿Por qué convienen?</h3><ul class="list-disc pl-5 mb-4 space-y-2 text-slate-300"><li><strong>Protección Cambiaria:</strong> Aunque los compras en pesos, su valor está atado al dólar Contado con Liqui (CCL). Si el dólar sube, tu CEDEAR sube.</li><li><strong>Inversión Global:</strong> Te permite salir del riesgo local argentino e invertir en las empresas más grandes del mundo.</li><li><strong>Dividendos:</strong> Si la empresa paga dividendos, los cobras en dólares.</li></ul>`
-    },
-    {
-        id: 2,
-        title: 'Entendiendo el Dólar MEP y CCL',
-        cat: 'Intermedio',
-        readTime: '4 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">Dólar Bolsa (MEP)</h3><p class="mb-4 text-slate-300">Es el dólar que se consigue comprando un bono en pesos (ej: AL30) y vendiéndolo en dólares (AL30D). Es 100% legal, sin límite mensual y el dinero queda en tu cuenta bancaria argentina.</p><h3 class="text-xl font-bold text-white mb-2">Contado con Liquidación (CCL)</h3><p class="mb-4 text-slate-300">Similar al MEP, pero se usa para sacar divisas al exterior. Se compra un activo en pesos y se vende en su especie "C" en una cuenta extranjera.</p>`
-    },
-    {
-        id: 3,
-        title: 'Obligaciones Negociables (ON)',
-        cat: 'Renta Fija',
-        readTime: '4 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">¿Qué son las ONs?</h3><p class="mb-4 text-slate-300">Son títulos de deuda emitidos por empresas privadas (como YPF, Pampa Energía o Arcor). Básicamente, le prestas plata a una empresa y te devuelven el capital más intereses en una fecha pactada.</p><ul class="list-disc pl-5 mb-4 space-y-2 text-slate-300"><li><strong>Renta en Dólares:</strong> La mayoría paga intereses y amortización en dólares billete.</li><li><strong>Rendimiento:</strong> Suelen rendir entre un 5% y 9% anual en dólares.</li></ul>`
-    },
-    {
-        id: 4,
-        title: 'Nueva Ley de Alquileres 2024',
-        cat: 'Inmobiliario',
-        readTime: '3 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">Libertad de Contratación</h3><p class="mb-4 text-slate-300">Tras la derogación de la Ley de Alquileres mediante el DNU vigente, las partes tienen libertad para pactar:</p><ul class="list-disc pl-5 mb-4 space-y-2 text-slate-300"><li><strong>Índice de Ajuste:</strong> Puede ser ICL, IPC, Casa Propia o cualquier otro índice público.</li><li><strong>Frecuencia:</strong> Los ajustes pueden ser mensuales, trimestrales, cuatrimestrales, etc.</li><li><strong>Moneda:</strong> Los contratos pueden celebrarse legalmente en dólares.</li></ul>`
-    }
+    { id: 1, title: 'Guía de CEDEARs', cat: 'Básico', readTime: '3 min', content: '...' },
+    { id: 4, title: 'Ley Alquileres 2024', cat: 'Legal', readTime: '5 min', content: '...' }
 ];
 
 const BANK_INFO = { alias: "DOLAR.HUB.PRO", cbu: "0000003100000000000000", bank: "Mercado Pago", name: "DolarHub Inc.", price: 5000 };
 
-// --- 3. COMPONENTES UI (DEFINIDOS FULL) ---
-
-const UserProfileModal = ({ isOpen, onClose, user, userData }) => {
-    if (!isOpen) return null;
-    return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in zoom-in-95">
-            <div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 relative">
-                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20} /></button>
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4">
-                    <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl border-2 border-blue-400">
-                        {user.email ? user.email[0].toUpperCase() : 'U'}
-                    </div>
-                    <div><h2 className="text-lg font-bold text-white">Mi Perfil</h2><p className="text-xs text-slate-400">{user.email}</p></div>
-                </div>
-                <div className="space-y-4 mb-6">
-                    <div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">Plan Actual</span><span className={`text-xs font-bold px-2 py-1 rounded ${userData?.plan === 'premium' ? 'bg-yellow-500 text-black' : 'bg-slate-600 text-white'}`}>{userData?.plan?.toUpperCase() || 'FREE'}</span></div>
-                    <div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">ID Cliente</span><span className="text-xs font-mono text-slate-500">{user.uid.slice(0, 8)}</span></div>
-                </div>
-                <button onClick={() => { signOut(auth); onClose(); }} className="w-full border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"><LogOut size={16} /> Cerrar Sesión</button>
-            </div>
-        </div>
-    );
-};
+// --- 3. COMPONENTES UI (CALCULADORA ARQUILER STYLE) ---
 
 const RentalCalculator = () => {
     const [amount, setAmount] = useState('');
     const [indexType, setIndexType] = useState('ICL');
     const [startDate, setStartDate] = useState('');
-    const [frequency, setFrequency] = useState('12');
+    const [updateDate, setUpdateDate] = useState('');
     const [result, setResult] = useState(null);
 
-    const calculate = () => {
-        if (!amount || !startDate) return;
-
-        // Calcular fecha teórica de actualización (Inicio + Frecuencia)
-        const dateBase = new Date(startDate + 'T12:00:00'); // Forzar mediodía para evitar TZ shifts
-        const dateTarget = new Date(dateBase);
-        dateTarget.setMonth(dateTarget.getMonth() + parseInt(frequency));
-
-        // String fechas (YYYY-MM-DD)
-        const startStr = startDate;
-        let targetStr = dateTarget.toISOString().split('T')[0];
-
-        // Lógica "Topar" con el último dato disponible
-        // Si la fecha objetivo es HOY o FUTURO, y no tenemos dato, usamos el último disponible
-        // PERO mantenemos el cálculo acumulado hasta la fecha.
-        const availableKeys = Object.keys(INDICES_DB[indexType]).sort();
-        const lastKey = availableKeys[availableKeys.length - 1]; // "2025-12"
-        const lastAvailableDate = `${lastKey}-28`; // Asumimos fin de mes aprox
-
-        let isProjected = false;
-        if (targetStr > lastAvailableDate) {
-            targetStr = lastAvailableDate;
-            isProjected = true;
+    // Botones rápidos para setear fecha de actualización
+    const setFrequency = (months) => {
+        if (!startDate) {
+            alert("Primero selecciona la fecha de inicio");
+            return;
         }
+        const d = new Date(startDate);
+        // Ajuste de zona horaria básico
+        const date = new Date(d.valueOf() + d.getTimezoneOffset() * 60000);
+        date.setMonth(date.getMonth() + months);
+        setUpdateDate(date.toISOString().split('T')[0]);
+    };
 
-        const startVal = getDailyIndex(indexType, startStr);
-        const endVal = getDailyIndex(indexType, targetStr);
+    const calculate = () => {
+        if (!amount || !startDate || !updateDate) return;
+
+        // Obtener índices exactos
+        const startVal = getDailyIndex(indexType, startDate);
+        const endVal = getDailyIndex(indexType, updateDate);
 
         if (!startVal || !endVal) return;
 
@@ -218,9 +134,7 @@ const RentalCalculator = () => {
             pct: pct.toFixed(2),
             diff: Math.floor(newAmount - amount),
             startVal: startVal.toFixed(2),
-            endVal: endVal.toFixed(2),
-            dateUsed: targetStr,
-            isProjected
+            endVal: endVal.toFixed(2)
         });
     };
 
@@ -229,59 +143,100 @@ const RentalCalculator = () => {
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="bg-orange-500/20 p-2 rounded-lg"><Home size={24} className="text-orange-400" /></div>
-                    <div><h3 className="font-bold text-white">Calculadora Alquiler</h3><p className="text-xs text-slate-400">Motor de cálculo ICL/IPC</p></div>
+                    <div>
+                        <h3 className="font-bold text-white">Calculadora Alquiler</h3>
+                        <p className="text-xs text-slate-400">Motor de cálculo ICL/IPC</p>
+                    </div>
                 </div>
             </div>
+
             <div className="space-y-5 flex-1">
+                {/* Selector Índice */}
                 <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-2 block">Índice de Ajuste</label>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-2 block">Índice</label>
                     <div className="bg-slate-900/50 p-1 rounded-lg flex gap-1">
                         {['ICL', 'IPC', 'CASA_PROPIA'].map(idx => (
-                            <button key={idx} onClick={() => setIndexType(idx)} className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${indexType === idx ? 'bg-orange-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}>{idx.replace('_', ' ')}</button>
+                            <button
+                                key={idx}
+                                onClick={() => setIndexType(idx)}
+                                className={`flex-1 py-2 text-[10px] font-bold rounded-md transition-all ${indexType === idx ? 'bg-orange-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                {idx.replace('_', ' ')}
+                            </button>
                         ))}
                     </div>
                 </div>
+
+                {/* Inputs de Fecha Manuales */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Inicio del Contrato</label>
-                        <input type="date" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500 [color-scheme:dark]" onChange={e => setStartDate(e.target.value)} />
+                        <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Inicio Contrato</label>
+                        <input
+                            type="date"
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500 [color-scheme:dark]"
+                            onChange={e => setStartDate(e.target.value)}
+                        />
                     </div>
                     <div>
-                        <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Frecuencia Ajuste</label>
-                        <div className="relative">
-                            <Clock size={14} className="absolute left-3 top-2.5 text-slate-500" />
-                            <select className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 pr-2 py-2 text-white text-xs outline-none focus:border-orange-500 appearance-none" value={frequency} onChange={e => setFrequency(e.target.value)}>
-                                <option value="12">Anual (12 Meses)</option>
-                                <option value="6">Semestral (6 Meses)</option>
-                                <option value="4">Cuatrimestral (4 Meses)</option>
-                                <option value="3">Trimestral (3 Meses)</option>
-                            </select>
-                        </div>
+                        <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Fecha Actualización</label>
+                        <input
+                            type="date"
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500 [color-scheme:dark]"
+                            value={updateDate}
+                            onChange={e => setUpdateDate(e.target.value)}
+                        />
                     </div>
                 </div>
+
+                {/* Botones de Frecuencia Rápida */}
                 <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Monto Actual ($)</label>
-                    <input type="number" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white font-mono outline-none focus:border-orange-500" placeholder="Ej: 350000" onChange={e => setAmount(e.target.value)} />
+                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-2 block">Frecuencia (Autocompletar)</label>
+                    <div className="flex gap-2">
+                        <button onClick={() => setFrequency(3)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded transition-colors border border-slate-600">Trimestral</button>
+                        <button onClick={() => setFrequency(6)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded transition-colors border border-slate-600">Semestral</button>
+                        <button onClick={() => setFrequency(12)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded transition-colors border border-slate-600">Anual</button>
+                    </div>
                 </div>
-                <button onClick={calculate} className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all">Calcular Nuevo Monto</button>
+
+                <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Monto Inicial ($)</label>
+                    <input
+                        type="number"
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white font-mono outline-none focus:border-orange-500"
+                        placeholder="Ej: 875000"
+                        onChange={e => setAmount(e.target.value)}
+                    />
+                </div>
+
+                <button onClick={calculate} className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+                    <Calculator size={18} /> Calcular Ajuste
+                </button>
+
                 {result && (
                     <div className="bg-slate-900 border border-orange-500/30 rounded-xl p-4 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="flex justify-between items-center mb-3"><span className="text-xs text-slate-400">Coeficiente</span><span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-300 font-mono tracking-wider">{result.startVal} ➝ {result.endVal}</span></div>
-                        <div className="text-center py-2">
-                            <p className="text-xs text-slate-500 uppercase font-bold mb-1">Vas a pagar</p>
-                            <p className="text-4xl font-bold text-white tracking-tight">${result.newAmount.toLocaleString()}</p>
-                            <div className="flex justify-center items-center gap-2 mt-2"><span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded">+{result.pct}%</span><span className="text-xs text-slate-500">+$ {result.diff.toLocaleString()}</span></div>
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-xs text-slate-400">Coeficiente ICL</span>
+                            <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-300 font-mono tracking-wider">{result.startVal} ➝ {result.endVal}</span>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-slate-800 text-center">
-                            <p className="text-[10px] text-slate-500">
-                                {result.isProjected ? '⚠️ Cálculo proyectado al último dato:' : 'Próxima actualización:'} <strong className="text-slate-300">{result.dateUsed}</strong>
-                            </p>
+
+                        <div className="text-center py-2">
+                            <p className="text-xs text-slate-500 uppercase font-bold mb-1">Nuevo Monto</p>
+                            <p className="text-4xl font-bold text-white tracking-tight">${result.newAmount.toLocaleString()}</p>
+                            <div className="flex justify-center items-center gap-2 mt-2">
+                                <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded">+{result.pct}%</span>
+                                <span className="text-xs text-slate-500">+$ {result.diff.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
                 )}
             </div>
         </div>
     );
+};
+
+const UserProfileModal = ({ isOpen, onClose, user, userData }) => {
+    if (!isOpen) return null;
+    return (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"><div className="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-700 p-6 relative"><button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20} /></button><div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4"><div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">{user.email ? user.email[0].toUpperCase() : 'U'}</div><div><h2 className="text-lg font-bold text-white">Mi Perfil</h2><p className="text-xs text-slate-400">{user.email}</p></div></div><div className="space-y-4 mb-6"><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">Plan</span><span className={`text-xs font-bold px-2 py-1 rounded ${userData?.plan === 'premium' ? 'bg-yellow-500 text-black' : 'bg-slate-600 text-white'}`}>{userData?.plan?.toUpperCase() || 'FREE'}</span></div><div className="bg-slate-800 p-3 rounded-lg flex justify-between items-center"><span className="text-sm text-slate-400">ID</span><span className="text-xs font-mono text-slate-500">{user.uid.slice(0, 8)}</span></div></div><button onClick={() => { signOut(auth); onClose(); }} className="w-full border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold py-2 rounded-lg">Cerrar Sesión</button></div></div>);
 };
 
 const AcademyViewer = ({ onBack }) => {
