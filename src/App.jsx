@@ -6,12 +6,22 @@ import { TrendingUp, Calculator, Search, Send, Lock, Shield, CheckCircle, AlertT
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 import ReactGA from "react-ga4";
 
-// --- 1. CONFIGURACIÓN FIREBASE (TUS CREDENCIALES) ---
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+// --- 1. CONFIGURACIÓN FIREBASE (IMPORTANTE: PEGA TUS DATOS AQUÍ) ---
+const firebaseConfig = {
+    apiKey: "AIzaSyAklVMPIfx51CBy9YRNcwdm5kj1fxtoWtw",
+    authDomain: "dolarhub.firebaseapp.com",
+    projectId: "dolarhub",
+    storageBucket: "dolarhub.firebasestorage.app",
+    messagingSenderId: "485763287482",
+    appId: "1:485763287482:web:650bb451766fa568073583",
+    measurementId: "G-H68JM26166"
+};
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Inicialización segura: Si no hay config real, no iniciamos para evitar crash
+const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "TU_API_KEY";
+const app = isConfigured ? initializeApp(firebaseConfig) : null;
+const auth = app ? getAuth(app) : null;
+const db = app ? getFirestore(app) : null;
 
 // --- DATOS REALES & INDICES ---
 
@@ -48,6 +58,7 @@ const MASTER_DB = [
     { s: 'NFLX', n: 'Netflix Inc.', us_p: 650.00, type: 'CEDEAR', ratio: 16 },
     { s: 'INTC', n: 'Intel Corp', us_p: 24.50, type: 'CEDEAR', ratio: 5 },
     { s: 'ASML', n: 'ASML Holding', us_p: 750.00, type: 'CEDEAR', ratio: 146 },
+    { s: 'AVGO', n: 'Broadcom Inc', p: 28000, type: 'CEDEAR', ratio: 11 }, // Fallback p si no hay us_p
 
     // REGIONALES & E-COMMERCE
     { s: 'MELI', n: 'MercadoLibre', us_p: 2100.00, type: 'CEDEAR', ratio: 120 },
@@ -69,6 +80,12 @@ const MASTER_DB = [
     { s: 'MCD', n: 'McDonalds', us_p: 300.00, type: 'CEDEAR', ratio: 8 },
     { s: 'WMT', n: 'Walmart', us_p: 82.00, type: 'CEDEAR', ratio: 6 },
     { s: 'DIS', n: 'Walt Disney', us_p: 95.00, type: 'CEDEAR', ratio: 4 },
+    { s: 'NKE', n: 'Nike Inc.', us_p: 10700, type: 'CEDEAR', ratio: 3 },
+
+    // FINANCIERO
+    { s: 'JPM', n: 'JPMorgan Chase', us_p: 19500, type: 'CEDEAR', ratio: 5 },
+    { s: 'V', n: 'Visa Inc.', us_p: 18800, type: 'CEDEAR', ratio: 18 },
+    { s: 'MA', n: 'Mastercard', us_p: 19100, type: 'CEDEAR', ratio: 33 },
 
     // ACCIONES LOCALES (Precio directo en ARS, hardcodeado base)
     { s: 'GGAL', n: 'Grupo Fin. Galicia', p_ars: 5600, type: 'ACCION', ratio: 1 },
@@ -380,11 +397,12 @@ const MarketColumn = ({ liveRates, loading }) => {
                     {filteredAssets.map(asset => {
                         // Lógica de Precio: Si es CEDEAR, calculamos. Si es Accion/Bono, usamos directo.
                         let finalPrice = 0;
-                        if (asset.type === 'CEDEAR') {
-                            // Formula: (Precio USD * CCL) / Ratio
+                        if (asset.type === 'CEDEAR' && asset.us_p) {
+                            // Formula: (Precio USD * CCL * Ratio) / Ratio ??? NO
+                            // Formula correcta BYMA: (Precio Accion USA * Dolar CCL) / Ratio
                             finalPrice = (asset.us_p * cclRate) / asset.ratio;
                         } else {
-                            finalPrice = asset.p_ars;
+                            finalPrice = asset.p_ars || 0;
                         }
 
                         // Simulación de variación ("Tictac")
@@ -472,6 +490,7 @@ export default function DolarHubApp() {
 
     // AUTH STATE
     useEffect(() => {
+        if (!auth) return; // Si no hay config, no intentar auth
         const unsub = onAuthStateChanged(auth, (u) => {
             if (u) {
                 setUser(u);
@@ -481,6 +500,19 @@ export default function DolarHubApp() {
         });
         return () => unsub();
     }, []);
+
+    // Muestra pantalla de error si no hay config
+    if (!auth) {
+        return (
+            <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white p-4">
+                <div className="max-w-md text-center">
+                    <AlertTriangle size={48} className="text-yellow-500 mx-auto mb-4" />
+                    <h1 className="text-2xl font-bold mb-2">Falta Configuración</h1>
+                    <p className="text-slate-400 mb-6">Para que DolarHub funcione, edita <code>src/App.jsx</code> y agrega tus credenciales de Firebase en la línea 10.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#0F172A] font-sans text-white pb-12 flex flex-col selection:bg-blue-500/30">
