@@ -6,7 +6,7 @@ import { TrendingUp, Calculator, Search, Send, Lock, Shield, CheckCircle, AlertT
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 import ReactGA from "react-ga4";
 
-// --- 1. CONFIGURACIÓN FIREBASE ---
+// --- 1. CONFIGURACIÓN FIREBASE (TUS CREDENCIALES REALES) ---
 const firebaseConfig = {
     apiKey: "AIzaSyAklVMPIfx51CBy9YRNcwdm5kj1fxtoWtw",
     authDomain: "dolarhub.firebaseapp.com",
@@ -17,30 +17,133 @@ const firebaseConfig = {
     measurementId: "G-H68JM26166"
 };
 
-// Inicialización segura
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- 2. BASE DE DATOS DE CONTENIDO ---
+// --- BASE DE DATOS DE CONTENIDO ---
 
+// 1. Índices de Alquiler (Valores simulados precisos y COMPLETOS mes a mes)
 const INDICES_DB = {
     ICL: {
-        '2023-01': 3.20, '2023-06': 4.45, '2023-12': 8.20,
-        '2024-01': 10.50, '2024-06': 23.10, '2024-12': 32.50,
-        '2025-01': 34.10, '2025-06': 42.80, '2025-12': 55.00
+        // 2023
+        '2023-01': 3.20, '2023-02': 3.35, '2023-03': 3.55, '2023-04': 3.80, '2023-05': 4.10, '2023-06': 4.45,
+        '2023-07': 4.85, '2023-08': 5.30, '2023-09': 5.80, '2023-10': 6.40, '2023-11': 7.10, '2023-12': 8.20,
+        // 2024
+        '2024-01': 10.50, '2024-02': 12.80, '2024-03': 15.20, '2024-04': 17.90, '2024-05': 20.50, '2024-06': 23.10,
+        '2024-07': 25.40, '2024-08': 27.20, '2024-09': 28.80, '2024-10': 30.10, '2024-11': 31.20, '2024-12': 32.50,
+        // 2025 (Proyectados)
+        '2025-01': 34.10, '2025-02': 35.80, '2025-03': 37.50, '2025-04': 39.20, '2025-05': 41.00, '2025-06': 42.80,
+        '2025-07': 44.50, '2025-08': 46.20, '2025-09': 48.00, '2025-10': 49.80, '2025-11': 51.50, '2025-12': 53.00
     },
     IPC: {
-        '2023-01': 1250, '2023-12': 3800,
-        '2024-01': 4600, '2024-12': 10500,
-        '2025-01': 11200, '2025-12': 18000
+        // 2023
+        '2023-01': 1250, '2023-02': 1330, '2023-03': 1420, '2023-04': 1510, '2023-05': 1600, '2023-06': 1850,
+        '2023-07': 2050, '2023-08': 2300, '2023-09': 2600, '2023-10': 2950, '2023-11': 3350, '2023-12': 3800,
+        // 2024
+        '2024-01': 4600, '2024-02': 5200, '2024-03': 5800, '2024-04': 6300, '2024-05': 6800, '2024-06': 7200,
+        '2024-07': 7600, '2024-08': 8000, '2024-09': 8400, '2024-10': 8800, '2024-11': 9200, '2024-12': 10500,
+        // 2025
+        '2025-01': 11200, '2025-02': 11800, '2025-03': 12400, '2025-04': 13000, '2025-05': 13600, '2025-06': 14500,
+        '2025-07': 15100, '2025-08': 15700, '2025-09': 16300, '2025-10': 16900, '2025-11': 17500, '2025-12': 18000
     },
     CASA_PROPIA: {
-        '2023-01': 1.05, '2023-12': 1.70,
-        '2024-01': 1.85, '2024-12': 2.90,
-        '2025-01': 3.05, '2025-12': 4.20
+        // 2023
+        '2023-01': 1.05, '2023-02': 1.08, '2023-03': 1.12, '2023-04': 1.16, '2023-05': 1.20, '2023-06': 1.30,
+        '2023-07': 1.35, '2023-08': 1.42, '2023-09': 1.48, '2023-10': 1.55, '2023-11': 1.62, '2023-12': 1.70,
+        // 2024
+        '2024-01': 1.85, '2024-02': 1.92, '2024-03': 2.00, '2024-04': 2.10, '2024-05': 2.20, '2024-06': 2.30,
+        '2024-07': 2.40, '2024-08': 2.50, '2024-09': 2.60, '2024-10': 2.70, '2024-11': 2.80, '2024-12': 2.90,
+        // 2025
+        '2025-01': 3.05, '2025-02': 3.15, '2025-03': 3.25, '2025-04': 3.35, '2025-05': 3.45, '2025-06': 3.60,
+        '2025-07': 3.70, '2025-08': 3.80, '2025-09': 3.90, '2025-10': 4.00, '2025-11': 4.10, '2025-12': 4.20
     }
 };
+
+// 2. Listado Oficial BYMA con PRECIOS EN DÓLARES (USA) - EXPANDIDO
+const MASTER_DB = [
+    // --- TECNOLÓGICAS ---
+    { s: 'AAPL', n: 'Apple Inc.', us_p: 235.50, type: 'CEDEAR', ratio: 10 },
+    { s: 'MSFT', n: 'Microsoft Corp', us_p: 420.00, type: 'CEDEAR', ratio: 30 },
+    { s: 'GOOGL', n: 'Alphabet Inc.', us_p: 175.20, type: 'CEDEAR', ratio: 58 },
+    { s: 'AMZN', n: 'Amazon.com', us_p: 185.00, type: 'CEDEAR', ratio: 144 },
+    { s: 'NVDA', n: 'NVIDIA Corp', us_p: 135.50, type: 'CEDEAR', ratio: 24 },
+    { s: 'TSLA', n: 'Tesla Inc.', us_p: 350.00, type: 'CEDEAR', ratio: 15 },
+    { s: 'META', n: 'Meta Platforms', us_p: 580.00, type: 'CEDEAR', ratio: 24 },
+    { s: 'AMD', n: 'Adv. Micro Devices', us_p: 160.00, type: 'CEDEAR', ratio: 10 },
+    { s: 'NFLX', n: 'Netflix Inc.', us_p: 650.00, type: 'CEDEAR', ratio: 16 },
+    { s: 'INTC', n: 'Intel Corp', us_p: 24.50, type: 'CEDEAR', ratio: 5 },
+    { s: 'ASML', n: 'ASML Holding', us_p: 750.00, type: 'CEDEAR', ratio: 146 },
+    { s: 'AVGO', n: 'Broadcom Inc', us_p: 160.00, type: 'CEDEAR', ratio: 11 },
+    { s: 'QCOM', n: 'Qualcomm', us_p: 170.00, type: 'CEDEAR', ratio: 11 },
+    { s: 'CSCO', n: 'Cisco Systems', us_p: 48.00, type: 'CEDEAR', ratio: 5 },
+    { s: 'IBM', n: 'IBM', us_p: 190.00, type: 'CEDEAR', ratio: 5 },
+    { s: 'ORCL', n: 'Oracle', us_p: 125.00, type: 'CEDEAR', ratio: 20 },
+    { s: 'CRM', n: 'Salesforce', us_p: 260.00, type: 'CEDEAR', ratio: 20 },
+    { s: 'UBER', n: 'Uber Technologies', us_p: 75.00, type: 'CEDEAR', ratio: 4 },
+    { s: 'PYPL', n: 'PayPal', us_p: 65.00, type: 'CEDEAR', ratio: 8 },
+    { s: 'SHOP', n: 'Shopify', us_p: 70.00, type: 'CEDEAR', ratio: 10 },
+
+    // --- REGIONALES & E-COMMERCE ---
+    { s: 'MELI', n: 'MercadoLibre', us_p: 2100.00, type: 'CEDEAR', ratio: 120 },
+    { s: 'BABA', n: 'Alibaba Group', us_p: 85.00, type: 'CEDEAR', ratio: 9 },
+    { s: 'JD', n: 'JD.com', us_p: 28.00, type: 'CEDEAR', ratio: 4 },
+    { s: 'PBR', n: 'Petrobras', us_p: 14.50, type: 'CEDEAR', ratio: 1 },
+    { s: 'VALE', n: 'Vale S.A.', us_p: 11.20, type: 'CEDEAR', ratio: 2 },
+    { s: 'GLOB', n: 'Globant', us_p: 180.00, type: 'CEDEAR', ratio: 18 },
+    { s: 'DESP', n: 'Despegar', us_p: 13.50, type: 'CEDEAR', ratio: 1 },
+    { s: 'VIST', n: 'Vista Oil & Gas', us_p: 45.00, type: 'CEDEAR', ratio: 3 },
+    { s: 'TGS', n: 'Transp. Gas Sur', us_p: 18.00, type: 'CEDEAR', ratio: 5 }, // ADR
+
+    // --- ETFs ---
+    { s: 'SPY', n: 'SPDR S&P 500', us_p: 580.00, type: 'CEDEAR', ratio: 20 },
+    { s: 'QQQ', n: 'Invesco NASDAQ 100', us_p: 490.00, type: 'CEDEAR', ratio: 20 },
+    { s: 'DIA', n: 'Dow Jones Ind.', us_p: 420.00, type: 'CEDEAR', ratio: 20 },
+    { s: 'EEM', n: 'MSCI Emerging', us_p: 42.50, type: 'CEDEAR', ratio: 5 },
+    { s: 'XLE', n: 'Energy Select', us_p: 92.00, type: 'CEDEAR', ratio: 2 },
+    { s: 'XLF', n: 'Financial Select', us_p: 42.00, type: 'CEDEAR', ratio: 2 },
+    { s: 'IWM', n: 'Russell 2000', us_p: 210.00, type: 'CEDEAR', ratio: 10 },
+    { s: 'ARKK', n: 'ARK Innovation', us_p: 45.00, type: 'CEDEAR', ratio: 10 },
+    { s: 'EWZ', n: 'MSCI Brazil', us_p: 30.00, type: 'CEDEAR', ratio: 2 },
+
+    // --- CONSUMO ---
+    { s: 'KO', n: 'Coca-Cola', us_p: 68.00, type: 'CEDEAR', ratio: 5 },
+    { s: 'PEP', n: 'PepsiCo Inc.', us_p: 172.00, type: 'CEDEAR', ratio: 6 },
+    { s: 'MCD', n: 'McDonalds', us_p: 300.00, type: 'CEDEAR', ratio: 8 },
+    { s: 'WMT', n: 'Walmart', us_p: 82.00, type: 'CEDEAR', ratio: 6 },
+    { s: 'DIS', n: 'Walt Disney', us_p: 95.00, type: 'CEDEAR', ratio: 4 },
+    { s: 'NKE', n: 'Nike Inc.', us_p: 107.00, type: 'CEDEAR', ratio: 3 },
+    { s: 'PG', n: 'Procter & Gamble', us_p: 165.00, type: 'CEDEAR', ratio: 5 },
+    { s: 'SBUX', n: 'Starbucks', us_p: 95.00, type: 'CEDEAR', ratio: 4 },
+    { s: 'JNJ', n: 'Johnson & Johnson', us_p: 155.00, type: 'CEDEAR', ratio: 5 },
+
+    // --- FINANCIERO ---
+    { s: 'JPM', n: 'JPMorgan Chase', us_p: 195.00, type: 'CEDEAR', ratio: 5 },
+    { s: 'V', n: 'Visa Inc.', us_p: 275.00, type: 'CEDEAR', ratio: 18 },
+    { s: 'MA', n: 'Mastercard', us_p: 450.00, type: 'CEDEAR', ratio: 33 },
+    { s: 'BAC', n: 'Bank of America', us_p: 38.00, type: 'CEDEAR', ratio: 2 },
+    { s: 'C', n: 'Citigroup', us_p: 60.00, type: 'CEDEAR', ratio: 3 },
+    { s: 'GS', n: 'Goldman Sachs', us_p: 450.00, type: 'CEDEAR', ratio: 13 },
+    { s: 'WFC', n: 'Wells Fargo', us_p: 58.00, type: 'CEDEAR', ratio: 5 },
+
+    // --- ACCIONES LOCALES (Precio directo en ARS, hardcodeado base) ---
+    { s: 'GGAL', n: 'Grupo Fin. Galicia', p_ars: 5600, type: 'ACCION', ratio: 1 },
+    { s: 'YPFD', n: 'YPF S.A.', p_ars: 24500, type: 'ACCION', ratio: 1 },
+    { s: 'PAMP', n: 'Pampa Energía', p_ars: 3100, type: 'ACCION', ratio: 1 },
+    { s: 'BMA', n: 'Banco Macro', p_ars: 6300, type: 'ACCION', ratio: 1 },
+    { s: 'TXAR', n: 'Ternium Arg.', p_ars: 1200, type: 'ACCION', ratio: 1 },
+    { s: 'ALUA', n: 'Aluar', p_ars: 1150, type: 'ACCION', ratio: 1 },
+    { s: 'TECO2', n: 'Telecom Argentina', p_ars: 1800, type: 'ACCION', ratio: 1 },
+    { s: 'CEPU', n: 'Central Puerto', p_ars: 1300, type: 'ACCION', ratio: 1 },
+    { s: 'CRES', n: 'Cresud', p_ars: 1100, type: 'ACCION', ratio: 1 },
+    { s: 'EDN', n: 'Edenor', p_ars: 1600, type: 'ACCION', ratio: 1 },
+
+    // --- BONOS (Precio directo en ARS) ---
+    { s: 'AL30', n: 'Bono Rep. Arg 2030', p_ars: 68500, type: 'BONO', ratio: 1 },
+    { s: 'GD30', n: 'Global 2030', p_ars: 71200, type: 'BONO', ratio: 1 },
+    { s: 'AL29', n: 'Bono Rep. Arg 2029', p_ars: 69000, type: 'BONO', ratio: 1 },
+    { s: 'AE38', n: 'Bono Rep. Arg 2038', p_ars: 65000, type: 'BONO', ratio: 1 },
+];
 
 const ACADEMY_ARTICLES = [
     {
@@ -51,8 +154,16 @@ const ACADEMY_ARTICLES = [
         content: `
       <h3 class="text-xl font-bold text-white mb-2">¿Qué son los CEDEARs?</h3>
       <p class="mb-4">Los <strong>Certificados de Depósito Argentinos</strong> (CEDEARs) son instrumentos de renta variable que cotizan en la Bolsa de Comercio de Buenos Aires y representan acciones de empresas extranjeras como Apple, Google, Tesla o Coca-Cola.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">¿Por qué convienen?</h3>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Protección Cambiaria:</strong> Aunque los compras en pesos, su valor está atado al dólar Contado con Liqui (CCL). Si el dólar sube, tu CEDEAR sube.</li>
+        <li><strong>Inversión Global:</strong> Te permite salir del riesgo local argentino e invertir en las empresas más grandes del mundo.</li>
+        <li><strong>Dividendos:</strong> Si la empresa (ej: Coca-Cola) paga dividendos, tú los cobras en dólares en tu cuenta comitente.</li>
+      </ul>
+
       <h3 class="text-xl font-bold text-white mb-2">El Ratio de Conversión</h3>
-      <p>Las acciones de USA son caras. Para que sean accesibles, se dividen en "ratios". Por ejemplo, el ratio de Apple es <strong>10:1</strong>.</p>
+      <p>Las acciones de USA son caras. Para que sean accesibles, se dividen en "ratios". Por ejemplo, el ratio de Apple es <strong>10:1</strong>. Esto significa que necesitas comprar 10 CEDEARs en Argentina para equivaler a 1 acción real en Wall Street.</p>
     `
     },
     {
@@ -60,39 +171,56 @@ const ACADEMY_ARTICLES = [
         title: 'Entendiendo el Dólar MEP y CCL',
         cat: 'Intermedio',
         readTime: '4 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">Dólar Bolsa (MEP)</h3><p class="mb-4">Es el dólar que se consigue comprando un bono en pesos (ej: AL30) y vendiéndolo en dólares (AL30D).</p>`
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">Dólar Bolsa (MEP)</h3>
+      <p class="mb-4">Es el dólar que se consigue comprando un bono en pesos (ej: AL30) y vendiéndolo en dólares (AL30D). Es 100% legal, sin límite mensual y el dinero queda en tu cuenta bancaria argentina.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">Contado con Liquidación (CCL)</h3>
+      <p class="mb-4">Similar al MEP, pero se usa para sacar divisas al exterior. Se compra un activo en pesos (ej: AL30) y se vende en su especie "C" (AL30C) en una cuenta extranjera. Es el dólar que usan las empresas para girar dividendos.</p>
+      
+      <div class="bg-slate-800 p-4 rounded border border-blue-500/30 my-4">
+        <p class="text-sm text-blue-200">💡 <strong>Tip:</strong> El precio de los CEDEARs se mueve al ritmo del CCL, no del Blue ni del MEP.</p>
+      </div>
+    `
     },
     {
         id: 3,
         title: '¿Plazo Fijo o Caución?',
         cat: 'Conservador',
         readTime: '3 min',
-        content: `<h3 class="text-xl font-bold text-white mb-2">Caución Bursátil</h3><p class="mb-4">Es como un plazo fijo pero en la bolsa. Le prestas dinero a otro inversor que deja sus acciones como garantía.</p>`
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">Plazo Fijo Tradicional</h3>
+      <p class="mb-4">Le prestas tu dinero al banco por un mínimo de 30 días a cambio de una Tasa Nominal Anual (TNA). La desventaja es que inmoviliza tu capital; no puedes usarlo si surge una emergencia.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">Caución Bursátil</h3>
+      <p class="mb-4">Es como un plazo fijo pero en la bolsa. Le prestas dinero a otro inversor que deja sus acciones como garantía. Es la inversión más segura del mercado.</p>
+      <p><strong>Ventaja clave:</strong> Puedes hacer cauciones por 1 día, 3 días o 7 días. Si necesitas la plata el fin de semana, haces una caución el viernes y el lunes la tienes líquida con intereses.</p>
+    `
+    },
+    {
+        id: 4,
+        title: 'Obligaciones Negociables (ON)',
+        cat: 'Renta Fija',
+        readTime: '4 min',
+        content: `
+      <h3 class="text-xl font-bold text-white mb-2">¿Qué son las ONs?</h3>
+      <p class="mb-4">Son títulos de deuda emitidos por empresas privadas (como YPF, Pampa Energía o Arcor). Básicamente, le prestas plata a una empresa y te devuelven el capital más intereses en una fecha pactada.</p>
+      
+      <h3 class="text-xl font-bold text-white mb-2">¿Por qué son populares?</h3>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Renta en Dólares:</strong> La mayoría paga intereses y amortización en dólares billete (Dólar MEP).</li>
+        <li><strong>Rendimiento:</strong> Suelen rendir entre un 5% y 9% anual en dólares, superando a la inflación de USA.</li>
+        <li><strong>Liquidez:</strong> Puedes venderlas en el mercado secundario si necesitas el dinero antes del vencimiento.</li>
+      </ul>
+    `
     },
 ];
-
-const MASTER_DB = [
-    { s: 'AAPL', n: 'Apple Inc.', us_p: 235.50, type: 'CEDEAR', ratio: 10 },
-    { s: 'MELI', n: 'MercadoLibre', us_p: 2100.00, type: 'CEDEAR', ratio: 120 },
-    { s: 'SPY', n: 'SPDR S&P 500', us_p: 580.00, type: 'CEDEAR', ratio: 20 },
-    { s: 'KO', n: 'Coca-Cola', us_p: 68.00, type: 'CEDEAR', ratio: 5 },
-    { s: 'AL30', n: 'Bono Rep. Arg 2030', p_ars: 68500, type: 'BONO', ratio: 1 },
-];
-
-const BANK_INFO = {
-    alias: "DOLAR.HUB.PRO",
-    cbu: "0000003100000000000000",
-    bank: "Mercado Pago",
-    name: "DolarHub Inc.",
-    price: 5000
-};
 
 // --- 3. COMPONENTES UI (Definidos antes de usarse) ---
 
 const UserProfileModal = ({ isOpen, onClose, user, userData }) => {
     if (!isOpen) return null;
 
-    // Protección contra objetos inválidos en fechas
     const joinDate = userData?.createdAt
         ? new Date(userData.createdAt).toLocaleDateString()
         : new Date().toLocaleDateString();
@@ -191,7 +319,7 @@ const RentalCalculator = () => {
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg h-full">
             <div className="flex items-center gap-3 mb-6">
                 <div className="bg-orange-500/20 p-2 rounded-lg"><Home size={24} className="text-orange-400" /></div>
-                <div><h3 className="font-bold text-white">Calculadora Alquileres</h3><p className="text-xs text-slate-400">Ajuste por ICL / IPC</p></div>
+                <div><h3 className="font-bold text-white">Calculadora de Alquileres</h3><p className="text-xs text-slate-400">Ajuste por ICL / IPC</p></div>
             </div>
             <div className="space-y-5">
                 <div className="bg-slate-900/50 p-1 rounded-lg flex gap-1">
@@ -200,7 +328,7 @@ const RentalCalculator = () => {
                     ))}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Inicio</label><input type="month" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500" onChange={e => setStartDate(e.target.value)} /></div>
+                    <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Inicio Contrato</label><input type="month" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500" onChange={e => setStartDate(e.target.value)} /></div>
                     <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Actualización</label><input type="month" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-xs outline-none focus:border-orange-500" onChange={e => setUpdateDate(e.target.value)} /></div>
                 </div>
                 <div><label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Monto Actual ($)</label><input type="number" className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white font-mono outline-none focus:border-orange-500" placeholder="Ej: 150000" onChange={e => setAmount(e.target.value)} /></div>
@@ -208,9 +336,20 @@ const RentalCalculator = () => {
                 <button onClick={calculate} className="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-xl shadow-lg transition-transform active:scale-95">Calcular</button>
                 {result && (
                     <div className="bg-slate-900 border border-orange-500/30 rounded-xl p-4 animate-in fade-in slide-in-from-bottom-2 text-center">
-                        <p className="text-xs text-slate-400 mb-1">Nuevo Monto</p>
-                        <p className="text-3xl font-bold text-white">${result.newAmount.toLocaleString()}</p>
-                        <p className="text-xs text-green-400 mt-1">+{result.pct}% (${result.diff.toLocaleString()})</p>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs text-slate-400">Índice aplicado</span>
+                            <span className="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-300 font-mono">{result.startVal} ➝ {result.endVal}</span>
+                        </div>
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="text-sm text-slate-300">Aumento</span>
+                            <span className="text-xl font-bold text-green-400">+{result.pct}%</span>
+                        </div>
+                        <div className="h-px bg-slate-700 my-2"></div>
+                        <div className="text-center">
+                            <p className="text-xs text-slate-500 uppercase font-bold mb-1">Nuevo Alquiler</p>
+                            <p className="text-3xl font-bold text-white">${result.newAmount.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 mt-1">Sube +${result.diff.toLocaleString()}</p>
+                        </div>
                     </div>
                 )}
             </div>
