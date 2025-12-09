@@ -32,21 +32,17 @@ const INDICES_DB = {
         '2024-07': 20.10, '2024-08': 21.50, '2024-09': 22.80, '2024-10': 23.90, '2024-11': 24.80, '2024-12': 25.50,
         '2025-01': 26.20, '2025-02': 27.50, '2025-03': 28.90, '2025-04': 30.50, '2025-05': 32.20, '2025-06': 34.00,
         '2025-07': 36.10, '2025-08': 38.20, '2025-09': 40.50, '2025-10': 42.80, '2025-11': 45.10, '2025-12': 47.50,
-        // Proyección 2026 para cálculos futuros
-        '2026-01': 50.00, '2026-02': 52.50, '2026-03': 55.10, '2026-04': 57.80, '2026-05': 60.50, '2026-06': 63.30,
-        '2026-07': 66.10, '2026-08': 69.00, '2026-09': 72.00, '2026-10': 75.10, '2026-11': 78.20, '2026-12': 81.50
+        '2026-01': 50.00 // Proyección mínima para evitar crash en primeros días 2026
     },
     IPC: {
         '2023-01': 1205, '2023-12': 3500,
         '2024-01': 4221, '2024-06': 6500, '2024-12': 9800,
-        '2025-01': 10500, '2025-06': 14000, '2025-12': 18000,
-        '2026-01': 18800, '2026-06': 23000, '2026-12': 28000
+        '2025-01': 10500, '2025-06': 14000, '2025-12': 18000
     },
     CASA_PROPIA: {
         '2023-01': 1.05, '2023-12': 1.70,
         '2024-01': 1.85, '2024-12': 2.90,
-        '2025-01': 3.05, '2025-12': 4.20,
-        '2026-01': 4.35, '2026-12': 5.50
+        '2025-01': 3.05, '2025-12': 4.20
     }
 };
 
@@ -183,33 +179,37 @@ const RentalCalculator = () => {
     const [frequency, setFrequency] = useState('12');
     const [result, setResult] = useState(null);
 
-    // Calcula automáticamente la fecha de actualización sumando la frecuencia
-    const targetDate = useMemo(() => {
-        if (!startDate) return '';
-        const date = new Date(startDate);
-        // Ajuste para evitar problemas de zona horaria al parsear string
-        const d = new Date(date.valueOf() + date.getTimezoneOffset() * 60000);
-        d.setMonth(d.getMonth() + parseInt(frequency));
-        return d.toISOString().split('T')[0];
-    }, [startDate, frequency]);
-
     const calculate = () => {
-        if (!amount || !startDate || !targetDate) return;
+        if (!amount || !startDate) return;
 
-        // Si la fecha de actualización es futura (más allá de Dic 2025/2026), 
-        // getDailyIndex usará el último valor disponible.
-        // Esto asegura que el cálculo nunca de 0, aunque sea una proyección.
+        // Calcular fecha teórica de actualización (Inicio + Frecuencia)
+        const dateBase = new Date(startDate + 'T12:00:00'); // Forzar mediodía para evitar TZ shifts
+        const dateTarget = new Date(dateBase);
+        dateTarget.setMonth(dateTarget.getMonth() + parseInt(frequency));
 
-        const startVal = getDailyIndex(indexType, startDate);
-        const endVal = getDailyIndex(indexType, targetDate);
+        // String fechas (YYYY-MM-DD)
+        const startStr = startDate;
+        let targetStr = dateTarget.toISOString().split('T')[0];
 
-        // Evitar división por 0 o valores nulos
-        if (!startVal || !endVal || startVal === 0) return;
+        // Lógica "Topar" con el último dato disponible
+        // Si la fecha objetivo es HOY o FUTURO, y no tenemos dato, usamos el último disponible
+        // PERO mantenemos el cálculo acumulado hasta la fecha.
+        const availableKeys = Object.keys(INDICES_DB[indexType]).sort();
+        const lastKey = availableKeys[availableKeys.length - 1]; // "2025-12"
+        const lastAvailableDate = `${lastKey}-28`; // Asumimos fin de mes aprox
+
+        let isProjected = false;
+        if (targetStr > lastAvailableDate) {
+            targetStr = lastAvailableDate;
+            isProjected = true;
+        }
+
+        const startVal = getDailyIndex(indexType, startStr);
+        const endVal = getDailyIndex(indexType, targetStr);
+
+        if (!startVal || !endVal) return;
 
         const factor = endVal / startVal;
-        // Si el factor da 1 (mismo índice), forzamos una diferencia mínima para feedback visual
-        // pero solo si las fechas son distintas.
-
         const newAmount = amount * factor;
         const pct = (factor - 1) * 100;
 
@@ -219,7 +219,8 @@ const RentalCalculator = () => {
             diff: Math.floor(newAmount - amount),
             startVal: startVal.toFixed(2),
             endVal: endVal.toFixed(2),
-            dateUsed: targetDate
+            dateUsed: targetStr,
+            isProjected
         });
     };
 
@@ -269,9 +270,13 @@ const RentalCalculator = () => {
                         <div className="text-center py-2">
                             <p className="text-xs text-slate-500 uppercase font-bold mb-1">Vas a pagar</p>
                             <p className="text-4xl font-bold text-white tracking-tight">${result.newAmount.toLocaleString()}</p>
-                            <div className="flex justify-center items-center gap-2 mt-2"><span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded">{result.pct > 0 ? '+' : ''}{result.pct}%</span><span className="text-xs text-slate-500">+$ {result.diff.toLocaleString()}</span></div>
+                            <div className="flex justify-center items-center gap-2 mt-2"><span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded">+{result.pct}%</span><span className="text-xs text-slate-500">+$ {result.diff.toLocaleString()}</span></div>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-slate-800 text-center"><p className="text-[10px] text-slate-500">Próxima actualización calculada: <strong className="text-slate-300">{result.dateUsed}</strong></p></div>
+                        <div className="mt-3 pt-3 border-t border-slate-800 text-center">
+                            <p className="text-[10px] text-slate-500">
+                                {result.isProjected ? '⚠️ Cálculo proyectado al último dato:' : 'Próxima actualización:'} <strong className="text-slate-300">{result.dateUsed}</strong>
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>
